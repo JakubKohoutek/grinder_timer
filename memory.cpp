@@ -19,6 +19,11 @@ void writeToMemory (int address, unsigned long value) {
   UNI_LONG result;
   result.value = value;
   for (int i = 0; i < 4; i++) {
-    EEPROM.update(address++, result.bytes[i]);
+    EEPROM.write(address++, result.bytes[i]);
   }
+  EEPROM.commit();
+}
+
+void initiateMemory () {
+  EEPROM.begin(512);
 }
