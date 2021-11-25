@@ -27,7 +27,7 @@ OLED          display(U8G2_R0, U8X8_PIN_NONE);
 Button        pushButton(ENCODER_BUTTON);
 
 // TODO:
-// read voltage during startup, show warning if low
+// refactor and clean up
 
 enum MenuItem {
   SingleDose,
@@ -130,6 +130,16 @@ void showMenu () {
   } while ( display.nextPage() );
 }
 
+void showLowVoltageWarning () {
+  display.firstPage();
+  do {
+    display.setFont(SMALL_FONT);
+    display.drawStr(64 -  display.getStrWidth("Low") / 2, 30, "Low");
+    display.drawStr(64 -  display.getStrWidth("battery!") / 2, 45, "battery!");
+  } while ( display.nextPage() );
+  delay(3000);
+}
+
 void setup () {
   #ifdef DEBUG
     Serial.begin(115200);
@@ -158,6 +168,11 @@ void setup () {
   oneDoseTimeout = readFromMemory(SINGLE_DOSE_ADDRESS);
   twoDoseTimeout = readFromMemory(DOUBLE_DOSE_ADDRESS);
   grindedDosesCount = readFromMemory(STATISTICS_ADDRESS);
+
+  float voltage = readVoltage();
+  if (voltage < 3.3) {
+    showLowVoltageWarning();
+  }
 
   lastActivityMillis = millis();
   showMenu();
@@ -297,7 +312,7 @@ void runTimer (MenuItem selectedItem) {
 
   unsigned long timeout = selectedItem == SingleDose ? oneDoseTimeout : twoDoseTimeout;
 
-  while (millisecondsFromStart <= timeout) {
+  while (true) {
     pushButton.read();
     if (pushButton.wasReleased()) {
       stopped = true;
@@ -305,6 +320,9 @@ void runTimer (MenuItem selectedItem) {
     }
 
     millisecondsFromStart = millis() - startTime;
+    if (millisecondsFromStart > timeout) {
+      break;
+    }
     showTime(millisecondsFromStart, "Grinding...");
     yield();
   }
@@ -313,7 +331,7 @@ void runTimer (MenuItem selectedItem) {
   if (stopped) {
     showTime(millisecondsFromStart, "Timer stopped...");
   } else {
-    showTime(millisecondsFromStart, "Done, enjoy!");
+    showTime(timeout, "Done, enjoy!");
     writeToMemory(
       STATISTICS_ADDRESS,
       grindedDosesCount += (selectedItem == SingleDose ? 1 : 2)
