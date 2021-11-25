@@ -27,7 +27,6 @@ OLED          display(U8G2_R0, U8X8_PIN_NONE);
 Button        pushButton(ENCODER_BUTTON);
 
 // TODO:
-// calculation for text centering
 // read voltage during startup, show warning if low
 
 enum MenuItem {
@@ -67,14 +66,15 @@ void drawMessage (const char* message, uint8_t row = 0) {
 void showTime (unsigned long milliseconds, const char * title) {
   unsigned int seconds = milliseconds / 1000;
   byte secondDecimals = (milliseconds % 1000) / 100;
+  String timeString = String(seconds) + ":" + String(secondDecimals);
 
-  String padding = seconds < 10 ? " " : "";
   display.firstPage();
   do {
     display.setFont(SMALL_FONT);
     display.drawStr(0, 15, title);
     display.setFont(LARGE_FONT);
-    display.drawStr(25, 55, (padding + String(seconds) + ":" + String(secondDecimals)).c_str());
+    unsigned short stringWidth = display.getStrWidth(seconds < 10 ? "0:0" : "10:0");
+    display.drawStr(64 - stringWidth / 2, 55, timeString.c_str());
   } while ( display.nextPage() );
 }
 
@@ -93,13 +93,14 @@ const char * getMenuItemString (MenuItem menuItem) {
 
 void showStatistics () {
   currentScreen = StatisticsScreen;
-  String padding = grindedDosesCount < 10 ? " " : "";
+  String grindedDosesString = String(grindedDosesCount);
   display.firstPage();
   do {
     display.setFont(SMALL_FONT);
     display.drawStr(0, 15, "Coffees grinded:");
     display.setFont(LARGE_FONT);
-    display.drawStr(30, 55, (padding + String(grindedDosesCount)).c_str());
+    unsigned short stringWidth = display.getStrWidth(grindedDosesString.c_str());
+    display.drawStr(64 - stringWidth / 2, 55, grindedDosesString.c_str());
   } while ( display.nextPage() );
 }
 
@@ -111,7 +112,8 @@ void showBattery () {
     display.setFont(SMALL_FONT);
     display.drawStr(0, 15, "Voltage:");
     display.setFont(LARGE_FONT);
-    display.drawStr(30, 55, String(voltage, 1).c_str());
+    unsigned short stringWidth = display.getStrWidth("0.0");
+    display.drawStr(64 - stringWidth / 2, 55, String(voltage, 1).c_str());
   } while ( display.nextPage() );
 }
 
