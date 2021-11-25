@@ -28,7 +28,6 @@ Button        pushButton(ENCODER_BUTTON);
 
 // TODO:
 // calculation for text centering
-// sleep after period of inactivity
 // read voltage during startup, show warning if low
 
 enum MenuItem {
@@ -50,6 +49,7 @@ long           encoderPosition = 0;
 unsigned long  oneDoseTimeout  = 0;
 unsigned long  twoDoseTimeout  = 0;
 unsigned long  grindedDosesCount = 0;
+unsigned long  lastActivityMillis = 0;
 Screen         currentScreen   = MenuScreen;
 MenuItem       menu[]          = {SingleDose, DoubleDose, Statistics, Battery};
 MenuItem*      selectedItem    = menu;
@@ -157,6 +157,7 @@ void setup () {
   twoDoseTimeout = readFromMemory(DOUBLE_DOSE_ADDRESS);
   grindedDosesCount = readFromMemory(STATISTICS_ADDRESS);
 
+  lastActivityMillis = millis();
   showMenu();
 }
 
@@ -257,24 +258,31 @@ void handleLongButtonPush () {
   ignoreNextPush = true;
 }
 
+void sleep () {
+  digitalWrite(PERIPHERY_PIN, HIGH);
+  ESP.deepSleep(0);
+}
+
 void loop() {
   long newPosition = readRotaryEncoder();
   if (newPosition != encoderPosition) {
     handleRotation(newPosition - encoderPosition < 0);
     encoderPosition = newPosition;
+    lastActivityMillis = millis();
   }
 
   pushButton.read();
   if (pushButton.wasReleased()) {
     handleButtonPush();
+    lastActivityMillis = millis();
   } else if (pushButton.pressedFor(LONG_PRESS_MS)) {
     handleLongButtonPush();
+    lastActivityMillis = millis();
   }
-}
 
-void sleep () {
-  digitalWrite(PERIPHERY_PIN, HIGH);
-  ESP.deepSleep(0);
+  if (millis() - lastActivityMillis > 30000) {
+    sleep();
+  }
 }
 
 void runTimer (MenuItem selectedItem) {
@@ -310,5 +318,6 @@ void runTimer (MenuItem selectedItem) {
     );
   }
   delay(2000);
+  lastActivityMillis = millis();
   showMenu();
 }
