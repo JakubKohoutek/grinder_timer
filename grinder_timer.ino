@@ -5,6 +5,7 @@
 
 #include "memory.h"
 #include "rotary_encoder.h"
+#include "voltage.h"
 
 #define ENCODER_A       14   // Must be an interrupt pin for sufficient reliability
 #define ENCODER_B       12   // Must be an interrupt pin for sufficient reliability
@@ -26,10 +27,9 @@ OLED          display(U8G2_R0, U8X8_PIN_NONE);
 Button        pushButton(ENCODER_BUTTON);
 
 // TODO:
-// statistics not counting correctly
-// battery
 // calculation for text centering
 // sleep after period of inactivity
+// read voltage during startup, show warning if low
 
 enum MenuItem {
   SingleDose,
@@ -42,7 +42,8 @@ enum Screen {
   MenuScreen,
   SettingsScreen,
   Timer,
-  StatisticsScreen
+  StatisticsScreen,
+  BatteryScreen
 };
 
 long           encoderPosition = 0;
@@ -50,7 +51,7 @@ unsigned long  oneDoseTimeout  = 0;
 unsigned long  twoDoseTimeout  = 0;
 unsigned long  grindedDosesCount = 0;
 Screen         currentScreen   = MenuScreen;
-MenuItem       menu[]          = {SingleDose, DoubleDose, Statistics};
+MenuItem       menu[]          = {SingleDose, DoubleDose, Statistics, Battery};
 MenuItem*      selectedItem    = menu;
 short          menuLength      = sizeof(menu) / sizeof(*menu);
 bool           ignoreNextPush  = false;
@@ -59,7 +60,7 @@ void drawMessage (const char* message, uint8_t row = 0) {
   display.firstPage();
   do {
     display.setFont(SMALL_FONT);
-    display.drawStr(0, 16 * (row + 1), message);
+    display.drawStr(0, 15 * (row + 1), message);
   } while ( display.nextPage() );
 }
 
@@ -71,7 +72,7 @@ void showTime (unsigned long milliseconds, const char * title) {
   display.firstPage();
   do {
     display.setFont(SMALL_FONT);
-    display.drawStr(0, 16, title);
+    display.drawStr(0, 15, title);
     display.setFont(LARGE_FONT);
     display.drawStr(25, 55, (padding + String(seconds) + ":" + String(secondDecimals)).c_str());
   } while ( display.nextPage() );
@@ -96,9 +97,21 @@ void showStatistics () {
   display.firstPage();
   do {
     display.setFont(SMALL_FONT);
-    display.drawStr(0, 16, "Coffees grinded:");
+    display.drawStr(0, 15, "Coffees grinded:");
     display.setFont(LARGE_FONT);
     display.drawStr(30, 55, (padding + String(grindedDosesCount)).c_str());
+  } while ( display.nextPage() );
+}
+
+void showBattery () {
+  currentScreen = BatteryScreen;
+  float voltage = readVoltage();
+  display.firstPage();
+  do {
+    display.setFont(SMALL_FONT);
+    display.drawStr(0, 15, "Voltage:");
+    display.setFont(LARGE_FONT);
+    display.drawStr(30, 55, String(voltage, 1).c_str());
   } while ( display.nextPage() );
 }
 
@@ -110,36 +123,33 @@ void showMenu () {
     for (short i = 0; i < menuLength; i++) {
       String selectionIndicator = *selectedItem == menu[i] ? "> " : "  ";
       String lineText = selectionIndicator + getMenuItemString(menu[i]);
-      display.drawStr(0, 16 * (i + 1), lineText.c_str());
+      display.drawStr(0, 15 * (i + 1), lineText.c_str());
     }
   } while ( display.nextPage() );
 }
 
 void setup () {
+  #ifdef DEBUG
+    Serial.begin(115200);
+  #endif
+
   // Turn off the WiFi as it's not needed now
+  WiFi.disconnect();
   WiFi.forceSleepBegin();
 
-  pinMode(RELAY_PIN, OUTPUT);
-  pinMode(PERIPHERY_PIN, OUTPUT);
-  digitalWrite(RELAY_PIN, LOW);
+  pinMode(ENCODER_BUTTON, INPUT);
+  pinMode(RELAY_PIN,      OUTPUT);
+  pinMode(PERIPHERY_PIN,  OUTPUT);
+
+  digitalWrite(RELAY_PIN,     LOW);
   digitalWrite(PERIPHERY_PIN, LOW);
 
+  initiateMemory();
   initRotaryEncoder(ENCODER_A, ENCODER_B);
-  pinMode(ENCODER_BUTTON, INPUT);
 
   display.begin();
   display.setBusClock(BUS_CLOCK_SPEED);
-  Serial.begin(115200);
-  Serial.println("\nAhoj");
-  display.firstPage();
-  do {
-    display.setFont(SMALL_FONT);
-    display.drawStr(20, 34, "May the coffee");
-    display.drawStr(35, 50, "be with you!");
-  } while ( display.nextPage() );
-  delay(2000);
 
-  initiateMemory();
   //  writeToMemory(SINGLE_DOSE_ADDRESS, 0);
   //  writeToMemory(DOUBLE_DOSE_ADDRESS, 0);
   //  writeToMemory(STATISTICS_ADDRESS, 0);
@@ -194,7 +204,7 @@ void handleButtonPush () {
   }
 
   switch (currentScreen) {
-    case Screen::MenuScreen:
+    case MenuScreen: {
       if (*selectedItem == SingleDose || *selectedItem == DoubleDose) {
         runTimer(*selectedItem);
         break;
@@ -203,10 +213,16 @@ void handleButtonPush () {
         showStatistics();
         break;
       }
-    case Screen::StatisticsScreen:
+      if (*selectedItem == Battery) {
+        showBattery();
+        break;
+      }
+    }
+    case StatisticsScreen: {
       showMenu();
       break;
-    case Screen::SettingsScreen:
+    }
+    case SettingsScreen: {
       bool singleDose = *selectedItem == SingleDose;
       writeToMemory(
         singleDose ? SINGLE_DOSE_ADDRESS : DOUBLE_DOSE_ADDRESS,
@@ -214,6 +230,11 @@ void handleButtonPush () {
       );
       showMenu();
       break;
+    }
+    case BatteryScreen: {
+      showMenu();
+      break;
+    }
   }
 }
 
