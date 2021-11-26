@@ -112,8 +112,9 @@ void showBattery () {
     display.setFont(SMALL_FONT);
     display.drawStr(0, 15, "Voltage:");
     display.setFont(LARGE_FONT);
-    unsigned short stringWidth = display.getStrWidth("0.0");
-    display.drawStr(64 - stringWidth / 2, 55, String(voltage, 1).c_str());
+    String voltageString = String(voltage, 2);
+    unsigned short stringWidth = display.getStrWidth(voltageString.c_str());
+    display.drawStr(64 - stringWidth / 2, 55, voltageString.c_str());
   } while ( display.nextPage() );
 }
 
