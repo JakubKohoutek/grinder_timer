@@ -14,9 +14,9 @@ float readVoltage () {
   // Calculation of voltage is based on the values of voltage divider resistors
   int vccResistor = 100;
   int gndResistor = 22;
-  float maxVoltage = 0.836;
+  float callibrationCoefficient = 0.969; // differs device by device due to the cheap ADC used
   float resistorsRatio = (float)gndResistor / (vccResistor + gndResistor);
-  float voltage = (maxVoltage * (float)sensorValue / 1024.0) / resistorsRatio;
+  float voltage = (callibrationCoefficient * (float)sensorValue / 1024.0) / resistorsRatio;
 
   #ifdef DEBUG
     Serial.println(String("Sensor value: ") + String(sensorValue) + String(", voltage: ") + String(voltage));
